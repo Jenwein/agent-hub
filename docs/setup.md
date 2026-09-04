@@ -18,7 +18,7 @@ curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
 
 ```bash
 # hub
-git clone <公开仓库> ~/hub
+git clone https://github.com/Jenwein/agent-hub.git ~/hub
 git clone <私有仓库> ~/hub/private        # 或 mkdir -p ~/hub/private/{rules,skills,state}
 cp ~/hub/resources.example.yaml ~/hub/private/resources.yaml   # 按实际改
 ~/hub/bin/hub-db-init
