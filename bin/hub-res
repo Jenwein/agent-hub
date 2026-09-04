@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 TAB=$(printf '\t')
 case "${1:-list}" in
-  list)     yq -r '.resources | to_entries[] | [.key, .value.type, (.value.reach // ("via " + .value.via)), ("always_on=" + (if .value.always_on == null then "-" else (.value.always_on | tostring) end))] | @tsv' "$RES_FILE" | column -t -s "$TAB" ;;
+  list)     yq -r '.resources | to_entries[] | [.key, .value.type, (.value.reach // ("via " + .value.via)), ("always_on=" + (.value.always_on | tostring | sub("null"; "-")))] | @tsv' "$RES_FILE" | column -t -s "$TAB" ;;
   get)      [[ -n "${2:-}" ]] || die "用法: hub-res get <资源>"; r=$(res_resolve "$2"); yq ".resources[\"$r\"]" "$RES_FILE" ;;
   resolve)  res_resolve "${2:?别名}" ;;
   projects) yq '.projects' "$RES_FILE" ;;
