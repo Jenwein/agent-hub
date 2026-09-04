@@ -12,7 +12,7 @@ for r in $(res_list); do
   if [[ -n "$via" ]] && ! res_exists "$via"; then echo "ERR  $r: via 指向不存在的 $via"; fi
   if [[ "$reach" == "ssh" ]]; then
     h=$(res_field "$r" ssh_host)
-    ssh -G "$h" 2>/dev/null | grep -qi "^hostname " || echo "WARN $r: ~/.ssh/config 里没有 Host $h"
+    grep -qiE "^\s*Host\s+(.*\s)?$h(\s|$)" ~/.ssh/config 2>/dev/null || echo "WARN $r: ~/.ssh/config 里没有 Host $h"
   fi
 done
 echo "ok   $(res_list | wc -l) 个资源"
