@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# 用法: hub-check <资源名|别名>
+# 输出 online/offline，退出码 0/1。always_on: false 的资源离线是常态。
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+[[ $# -eq 1 ]] || die "用法: hub-check <资源>"
+res=$(res_resolve "$1"); type=$(res_field "$res" type)
+case "$type" in
+  docker)  probe='version --format {{.Server.Version}}' ;;
+  windows) probe='$PSVersionTable.PSVersion.ToString()' ;;
+  *)       probe='uname -sr' ;;
+esac
+if out=$(HUB_SSH_TIMEOUT=5 timeout 25 bash -c 'source "$1/bin/lib/common.sh"; hub_exec "$2" "$3"' _ "$HUB_DIR" "$res" "$probe" 2>/dev/null); then
+  echo "online  $res  ${out//$'\n'/ }"
+else
+  ao=$(res_field "$res" always_on)
+  if [[ "$ao" == "false" ]]; then echo "offline $res  (always_on=false，离线属正常)"; else echo "offline $res  (该资源应常开，请检查)"; fi
+  exit 1
+fi

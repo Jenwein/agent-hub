@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""提醒。由 cron 每分钟跑 `hub-remind due --notify` 投递到 Discord webhook。
+用法:
+  hub-remind add "<YYYY-MM-DD HH:MM | 明天 09:00 | +2h | +30m | +1d>" "<内容>"
+  hub-remind list
+  hub-remind due [--notify]     # 列出已到期未触发的；--notify 则投递并标记已触发
+  hub-remind del <id>
+投递地址取环境变量 HUB_DISCORD_WEBHOOK，或 private/resources.yaml 里 services.discord_webhook。
+"""
+import sys, argparse, os, re, datetime, json, urllib.request
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
+from hubdb import connect, table, die, HUB_DIR
+
+COLS = ["id", "due_at", "text"]
+UNITS = {"m": "minutes", "h": "hours", "d": "days"}
+
+
+def parse_when(s):
+    now = datetime.datetime.now().replace(second=0, microsecond=0)
+    s = s.strip()
+    m = re.fullmatch(r"\+(\d+)([mhd])", s)
+    if m:
+        return now + datetime.timedelta(**{UNITS[m[2]]: int(m[1])})
+    today = now.date()
+    for word, delta in (("今天", 0), ("明天", 1), ("后天", 2)):
+        s = s.replace(word, (today + datetime.timedelta(delta)).isoformat())
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.datetime.strptime(s, fmt)
+        except ValueError:
+            pass
+    die(f"无法解析时间: {s}")
+
+
+def webhook():
+    url = os.environ.get("HUB_DISCORD_WEBHOOK")
+    if url:
+        return url
+    f = HUB_DIR / "private" / "resources.yaml"
+    if f.exists():
+        m = re.search(r"^\s*discord_webhook:\s*[\"']?(\S+?)[\"']?\s*$", f.read_text(encoding="utf-8"), re.M)
+        if m:
+            return m[1]
+    return None
+
+
+def notify(url, text):
+    body = json.dumps({"content": text}).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", "User-Agent": "agent-hub"})
+    urllib.request.urlopen(req, timeout=10).read()
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sp = p.add_subparsers(dest="cmd", required=True)
+    a = sp.add_parser("add")
+    a.add_argument("when")
+    a.add_argument("text")
+    sp.add_parser("list")
+    sp.add_parser("due").add_argument("--notify", action="store_true")
+    sp.add_parser("del").add_argument("id", type=int)
+    args = p.parse_args()
+    con = connect()
+
+    if args.cmd == "add":
+        due = parse_when(args.when).strftime("%Y-%m-%d %H:%M")
+        cur = con.execute("INSERT INTO reminder(due_at,text) VALUES(?,?)", (due, args.text))
+        con.commit()
+        print(f"added #{cur.lastrowid} at {due}")
+    elif args.cmd == "list":
+        table(con.execute("SELECT id,due_at,text FROM reminder WHERE fired_at IS NULL ORDER BY due_at").fetchall(), COLS)
+    elif args.cmd == "due":
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        rows = con.execute("SELECT id,due_at,text FROM reminder WHERE fired_at IS NULL AND due_at<=? ORDER BY due_at",
+                           (now,)).fetchall()
+        if not args.notify:
+            table(rows, COLS)
+            return
+        if not rows:
+            return
+        url = webhook()
+        if not url:
+            die("未配置 Discord webhook（HUB_DISCORD_WEBHOOK 或 services.discord_webhook）")
+        for r in rows:
+            notify(url, f"⏰ 提醒 ({r['due_at']}): {r['text']}")
+            con.execute("UPDATE reminder SET fired_at=? WHERE id=?", (now, r["id"]))
+            con.commit()
+            print(f"fired #{r['id']}")
+    elif args.cmd == "del":
+        con.execute("DELETE FROM reminder WHERE id=?", (args.id,))
+        con.commit()
+        print(f"deleted #{args.id}")
+
+
+if __name__ == "__main__":
+    main()

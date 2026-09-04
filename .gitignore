@@ -1,0 +1,12 @@
+# 私有仓库叠加目录（单独 clone 到这里）
+/private/
+# 临时现场
+/tmp/*
+!/tmp/.gitkeep
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+__pycache__/
+# agent 技能发现目录，由 bin/hub-link-skills 生成
+/.agents/
+/.claude/

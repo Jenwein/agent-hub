@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""任务。status: todo | doing | waiting | done。notes 字段用来跨会话接续进度。
+用法:
+  hub-task add "<标题>" [--notes ...]
+  hub-task list [--status todo,doing] [--all]   # 默认不显示 done
+  hub-task show <id>
+  hub-task set <id> [--status S] [--notes ...] [--append "追加一行进度"]
+  hub-task done <id> | del <id>
+"""
+import sys, argparse, os, datetime
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
+from hubdb import connect, table, die
+
+ST = ("todo", "doing", "waiting", "done")
+ORDER = "CASE status WHEN 'doing' THEN 0 WHEN 'waiting' THEN 1 WHEN 'todo' THEN 2 ELSE 3 END, id"
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sp = p.add_subparsers(dest="cmd", required=True)
+    a = sp.add_parser("add")
+    a.add_argument("title")
+    a.add_argument("--notes", default="")
+    l = sp.add_parser("list")
+    l.add_argument("--status")
+    l.add_argument("--all", action="store_true")
+    sp.add_parser("show").add_argument("id", type=int)
+    s = sp.add_parser("set")
+    s.add_argument("id", type=int)
+    s.add_argument("--status", choices=ST)
+    s.add_argument("--notes")
+    s.add_argument("--append")
+    for c in ("done", "del"):
+        sp.add_parser(c).add_argument("id", type=int)
+    args = p.parse_args()
+    con = connect()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    if args.cmd == "add":
+        cur = con.execute("INSERT INTO task(title,notes) VALUES(?,?)", (args.title, args.notes))
+        con.commit()
+        print(f"added #{cur.lastrowid}")
+    elif args.cmd == "list":
+        if args.status:
+            sts = args.status.split(",")
+        elif args.all:
+            sts = list(ST)
+        else:
+            sts = ["todo", "doing", "waiting"]
+        marks = ",".join("?" * len(sts))
+        rows = con.execute(f"SELECT id,status,updated_at,title FROM task WHERE status IN ({marks}) ORDER BY {ORDER}",
+                           sts).fetchall()
+        table(rows, ["id", "status", "updated_at", "title"])
+    elif args.cmd == "show":
+        r = con.execute("SELECT * FROM task WHERE id=?", (args.id,)).fetchone()
+        if not r:
+            die(f"#{args.id} 不存在")
+        print(f"#{r['id']} [{r['status']}] {r['title']}")
+        print(f"created {r['created_at']}  updated {r['updated_at']}")
+        print("---")
+        print(r["notes"])
+    elif args.cmd in ("set", "done"):
+        r = con.execute("SELECT notes FROM task WHERE id=?", (args.id,)).fetchone()
+        if not r:
+            die(f"#{args.id} 不存在")
+        notes = r["notes"]
+        if args.cmd == "done":
+            status = "done"
+        else:
+            status = args.status
+            if args.notes is not None:
+                notes = args.notes
+            if args.append:
+                notes = (notes + "\n" if notes else "") + f"[{now}] {args.append}"
+        con.execute("UPDATE task SET status=COALESCE(?,status), notes=?, updated_at=? WHERE id=?",
+                    (status, notes, now, args.id))
+        con.commit()
+        print(f"updated #{args.id}")
+    elif args.cmd == "del":
+        con.execute("DELETE FROM task WHERE id=?", (args.id,))
+        con.commit()
+        print(f"deleted #{args.id}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# 创建或升级 private/state/hub.db。schema 是幂等的，可重复执行。
+set -euo pipefail
+HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+mkdir -p "$HUB_DIR/private/state/logs"
+python3 - "$HUB_DIR" <<'PY'
+import sqlite3, sys, pathlib
+hub = pathlib.Path(sys.argv[1]); db = hub/'private/state/hub.db'
+con = sqlite3.connect(db); con.executescript((hub/'bin/schema.sql').read_text(encoding='utf-8')); con.close()
+print(f"ok {db}")
+PY

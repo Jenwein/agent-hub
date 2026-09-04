@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# 检查依赖、清单合法性、所有资源在线状态。
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+echo "== 依赖"
+for c in yq ssh iconv base64 timeout python3 git; do
+  if command -v "$c" >/dev/null; then echo "ok   $c"; else echo "MISS $c"; fi
+done
+echo; echo "== 清单 $RES_FILE"
+yq -e '.resources' "$RES_FILE" >/dev/null || die "resources.yaml 解析失败"
+for r in $(res_list); do
+  via=$(res_field "$r" via); reach=$(res_field "$r" reach)
+  if [[ -n "$via" ]] && ! res_exists "$via"; then echo "ERR  $r: via 指向不存在的 $via"; fi
+  if [[ "$reach" == "ssh" ]]; then
+    h=$(res_field "$r" ssh_host)
+    ssh -G "$h" 2>/dev/null | grep -qi "^hostname " || echo "WARN $r: ~/.ssh/config 里没有 Host $h"
+  fi
+done
+echo "ok   $(res_list | wc -l) 个资源"
+echo; echo "== 在线状态"
+for r in $(res_list); do "$HUB_DIR/bin/hub-check" "$r" || true; done
+echo; echo "== skills"
+for d in "$HUB_DIR"/skills/*/ "$PRIV_DIR"/skills/*/; do
+  [[ -d "$d" ]] || continue
+  if [[ -f "$d/SKILL.md" ]]; then echo "ok   $(basename "$d")"; else echo "WARN $(basename "$d") 缺 SKILL.md"; fi
+done
+echo; echo "== private"
+[[ -d "$PRIV_DIR/.git" ]] && echo "ok   private/ 是 git 仓库" || echo "INFO private/ 不是 git 仓库（可选）"
+[[ -f "$STATE_DIR/hub.db" ]] && echo "ok   state/hub.db" || echo "INFO state/hub.db 不存在，运行 bin/hub-db-init"
+if [[ -L "$HUB_DIR/.agents/skills" ]]; then echo "ok   .agents/skills 已链接"; else echo "INFO .agents/skills 未链接，运行 bin/hub-link-skills"; fi

@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""备忘。
+用法:
+  hub-memo add "<内容>" [--tags a,b]
+  hub-memo list [--tag X] [--all]        # 默认只看未归档
+  hub-memo search <关键词>
+  hub-memo archive <id> | del <id>
+"""
+import sys, argparse, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
+from hubdb import connect, table
+
+COLS = ["id", "created_at", "tags", "text"]
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sp = p.add_subparsers(dest="cmd", required=True)
+    a = sp.add_parser("add")
+    a.add_argument("text")
+    a.add_argument("--tags", default="")
+    l = sp.add_parser("list")
+    l.add_argument("--tag")
+    l.add_argument("--all", action="store_true")
+    sp.add_parser("search").add_argument("q")
+    for c in ("archive", "del"):
+        sp.add_parser(c).add_argument("id", type=int)
+    args = p.parse_args()
+    con = connect()
+    sel = f"SELECT {','.join(COLS)} FROM memo"
+
+    if args.cmd == "add":
+        cur = con.execute("INSERT INTO memo(text,tags) VALUES(?,?)", (args.text, args.tags))
+        con.commit()
+        print(f"added #{cur.lastrowid}")
+    elif args.cmd == "list":
+        w, v = ("1=1", []) if args.all else ("archived=0", [])
+        if args.tag:
+            w += " AND (','||tags||',') LIKE ?"
+            v.append(f"%,{args.tag},%")
+        table(con.execute(f"{sel} WHERE {w} ORDER BY id DESC", v).fetchall(), COLS)
+    elif args.cmd == "search":
+        q = f"%{args.q}%"
+        table(con.execute(f"{sel} WHERE text LIKE ? OR tags LIKE ? ORDER BY id DESC", (q, q)).fetchall(), COLS)
+    elif args.cmd == "archive":
+        con.execute("UPDATE memo SET archived=1 WHERE id=?", (args.id,))
+        con.commit()
+        print(f"archived #{args.id}")
+    elif args.cmd == "del":
+        con.execute("DELETE FROM memo WHERE id=?", (args.id,))
+        con.commit()
+        print(f"deleted #{args.id}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# 用法: hub-safe-rm <资源> <路径>
+# 不删除，只把路径移动到该机器的回收目录 ~/.hub-trash/<日期>/ 下。真正清空回收目录属于 L3。
+# 会写入 private/state/logs/hub-run.log。
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+[[ $# -eq 2 ]] || die "用法: hub-safe-rm <资源> <路径>"
+res=$(res_resolve "$1"); path="$2"; type=$(res_field "$res" type); stamp=$(date +%Y%m%d)
+mkdir -p "$STATE_DIR/logs"; printf '%s	%s	SAFE-RM	%s
+' "$(date +%FT%T)" "$res" "$path" >> "$STATE_DIR/logs/hub-run.log"
+case "$type" in
+  windows)
+    hub_exec "$res" "\$t = Join-Path \$env:USERPROFILE '.hub-trash\$stamp'; New-Item -ItemType Directory -Force \$t | Out-Null; Move-Item -LiteralPath '$path' -Destination \$t -Force; Write-Output \"moved to \$t\"" ;;
+  linux|wsl)
+    hub_exec "$res" "t=\$HOME/.hub-trash/$stamp; mkdir -p \"\$t\"; mv -- $(printf '%q' "$path") \"\$t/\"; echo \"moved to \$t\"" ;;
+  *) die "$res 类型 $type 不支持 safe-rm" ;;
+esac

@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""记账。金额支出为正，收入为负。
+用法:
+  hub-ledger add <金额> <分类> [备注] [--date YYYY-MM-DD]
+  hub-ledger list [--month YYYY-MM] [--category X] [--limit N]
+  hub-ledger sum  [--month YYYY-MM] [--by category|month]
+  hub-ledger del  <id>
+  hub-ledger export [--month YYYY-MM]        # CSV 到 stdout
+"""
+import sys, argparse, csv, datetime, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
+from hubdb import connect, table
+
+COLS = ["id", "date", "amount", "category", "note"]
+
+
+def month_clause(m):
+    return ("date LIKE ?", [f"{m}%"]) if m else ("1=1", [])
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sp = p.add_subparsers(dest="cmd", required=True)
+    a = sp.add_parser("add")
+    a.add_argument("amount", type=float)
+    a.add_argument("category")
+    a.add_argument("note", nargs="?", default="")
+    a.add_argument("--date", default=datetime.date.today().isoformat())
+    l = sp.add_parser("list")
+    l.add_argument("--month")
+    l.add_argument("--category")
+    l.add_argument("--limit", type=int, default=50)
+    s = sp.add_parser("sum")
+    s.add_argument("--month")
+    s.add_argument("--by", choices=["category", "month"], default="category")
+    sp.add_parser("del").add_argument("id", type=int)
+    sp.add_parser("export").add_argument("--month")
+    args = p.parse_args()
+    con = connect()
+
+    if args.cmd == "add":
+        cur = con.execute("INSERT INTO ledger(date,amount,category,note) VALUES(?,?,?,?)",
+                          (args.date, args.amount, args.category, args.note))
+        con.commit()
+        print(f"added #{cur.lastrowid} {args.date} {args.amount:g} {args.category} {args.note}")
+    elif args.cmd == "list":
+        w, v = month_clause(args.month)
+        if args.category:
+            w += " AND category=?"
+            v.append(args.category)
+        rows = con.execute(f"SELECT {','.join(COLS)} FROM ledger WHERE {w} ORDER BY date DESC,id DESC LIMIT ?",
+                           v + [args.limit]).fetchall()
+        table(rows, COLS)
+    elif args.cmd == "sum":
+        w, v = month_clause(args.month)
+        key = "category" if args.by == "category" else "substr(date,1,7)"
+        rows = con.execute(f"SELECT {key} AS k, ROUND(SUM(amount),2) AS total, COUNT(*) AS n "
+                           f"FROM ledger WHERE {w} GROUP BY k ORDER BY total DESC", v).fetchall()
+        table(rows, ["k", "total", "n"])
+        tot = con.execute(f"SELECT ROUND(SUM(amount),2) FROM ledger WHERE {w}", v).fetchone()[0]
+        print(f"合计: {tot or 0}")
+    elif args.cmd == "del":
+        n = con.execute("DELETE FROM ledger WHERE id=?", (args.id,)).rowcount
+        con.commit()
+        print(f"deleted #{args.id}" if n else f"#{args.id} 不存在")
+    elif args.cmd == "export":
+        w, v = month_clause(args.month)
+        wr = csv.writer(sys.stdout)
+        wr.writerow(COLS)
+        for r in con.execute(f"SELECT {','.join(COLS)} FROM ledger WHERE {w} ORDER BY date,id", v):
+            wr.writerow(list(r))
+
+
+if __name__ == "__main__":
+    main()

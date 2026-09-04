@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# 用法: hub-backup [目标目录]   默认 ~/backups/hub
+# 把 private/state（数据库、记忆、日志）打包为带日期的 tar.gz，保留最近 30 份。
+set -euo pipefail
+HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="$HUB_DIR/private/state"; DEST="${1:-$HOME/backups/hub}"
+[[ -d "$SRC" ]] || { echo "hub: $SRC 不存在，无可备份" >&2; exit 1; }
+mkdir -p "$DEST"
+out="$DEST/state-$(date +%Y%m%d-%H%M%S).tar.gz"
+if command -v sqlite3 >/dev/null && [[ -f "$SRC/hub.db" ]]; then
+  tmp=$(mktemp -d); sqlite3 "$SRC/hub.db" ".backup '$tmp/hub.db'"
+  tar czf "$out" -C "$SRC" --exclude=hub.db . -C "$tmp" hub.db; rm -rf "$tmp"
+else
+  tar czf "$out" -C "$SRC" .
+fi
+ls -1t "$DEST"/state-*.tar.gz | tail -n +31 | xargs -r rm -f
+echo "backup -> $out ($(du -h "$out" | cut -f1))"

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# 把 skills/ 和 private/skills/ 下的每个技能链接到各 agent 的发现目录
+# （Codex: .agents/skills，Claude Code: .claude/skills）。链接目录被 .gitignore 排除，仅在部署机上创建。
+set -euo pipefail
+HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for d in .agents .claude; do
+  mkdir -p "$HUB_DIR/$d/skills"
+  find "$HUB_DIR/$d/skills" -maxdepth 1 -type l -delete
+  for src in "$HUB_DIR"/skills/*/ "$HUB_DIR"/private/skills/*/; do
+    [[ -f "$src/SKILL.md" ]] || continue
+    ln -sfn "${src%/}" "$HUB_DIR/$d/skills/$(basename "$src")"
+  done
+  echo "$d/skills: $(ls "$HUB_DIR/$d/skills" | wc -l) 个技能"
+done

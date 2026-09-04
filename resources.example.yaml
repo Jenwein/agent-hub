@@ -1,0 +1,111 @@
+# 资源清单示例。真实清单放 private/resources.yaml（被 gitignore），格式与此相同。
+# agent 能触达的所有机器、环境、项目都在这里有一个稳定名字。
+# 名字用 / 分层。凡是 via 指向别的资源的，都通过那个资源到达。
+# 这个文件不放任何密钥。SSH 主机名、密钥、用户名在 ~/.ssh/config 里维护，这里只引用别名。
+#
+# 字段说明：
+#   type       linux | windows | wsl | docker | nfs
+#   reach      local | ssh | via (由 via 字段指定父资源)
+#   ssh_host   ~/.ssh/config 里的 Host 别名
+#   via        父资源名
+#   distro     wsl 专用，wsl.exe -d 的发行版名
+#   context    docker 专用，可选，docker --context 的名字
+#   always_on  false 的资源离线是常态
+#   aliases    主人口头会用的叫法
+#   paths      常用目录别名
+#   notes      给 agent 的人类提示
+#   default    同一父资源下有多个同类环境时，标记默认的那个
+
+version: 1
+
+resources:
+
+  server:
+    type: linux
+    reach: local
+    always_on: true
+    aliases: [aliyun, 服务器, 云服务器]
+    paths:
+      hub: ~/hub
+      projects: ~/code
+      backups: ~/backups
+    notes: >
+      阿里云 Ubuntu 24.04，2 核 1.6G 内存 2G swap，40G 盘。
+      cc-connect 和 Codex 就跑在这台机器上。内存紧，不要在上面跑编译或大模型。
+
+  server/docker:
+    type: docker
+    via: server
+    notes: 服务器上的 docker，长期服务放这里。
+
+  desktop:
+    type: windows
+    reach: ssh
+    ssh_host: desktop
+    shell: powershell
+    always_on: false
+    aliases: [台式机, 主力机, pc]
+    paths:
+      projects: D:\code
+      downloads: C:\Users\Jenwein\Downloads
+    notes: >
+      主力开发机，Windows 11。通过 Tailscale 到达。
+      GUI 相关操作隔着 SSH 做不了，遇到就说明。
+
+  desktop/wsl:
+    type: wsl
+    via: desktop
+    distro: Ubuntu-24.04
+    default: true
+    aliases: [wsl, ubuntu]
+    paths:
+      projects: ~/code
+    notes: 默认发行版。Windows 盘在 /mnt/c、/mnt/d。
+
+  desktop/wsl-ml:
+    type: wsl
+    via: desktop
+    distro: Ubuntu-22.04
+    aliases: [ml环境]
+    notes: 第二个发行版的示例。同一台机器有几个 WSL 就写几条。
+
+  desktop/docker:
+    type: docker
+    via: desktop
+    notes: Docker Desktop 的引擎，从 Windows 侧调用。
+
+  desktop/wsl/docker:
+    type: docker
+    via: desktop/wsl
+    notes: WSL 内部的 docker（如果和 Docker Desktop 集成，其实是同一个引擎）。
+
+  laptop:
+    type: windows
+    reach: ssh
+    ssh_host: laptop
+    shell: powershell
+    always_on: false
+    aliases: [笔记本, 本子]
+    paths:
+      projects: C:\Users\Jenwein\code
+    notes: 移动办公用，在线时间不固定。
+
+  # nas:
+  #   type: nfs
+  #   reach: mount
+  #   mounts:
+  #     server: /mnt/nas
+  #     desktop: "Z:"
+
+# 项目：每个 git 仓库在哪些机器的哪个路径。跨机同步只走 git。
+projects:
+
+  agent-hub:
+    remote: git@github.com:<you>/agent-hub.git
+    locations:
+      server: ~/hub
+      desktop: D:\code\agent-hub
+
+# 外部服务：只放地址和名字，不放密钥（密钥用环境变量或各工具自己的配置）。
+services:
+  discord_webhook: https://discord.com/api/webhooks/<id>/<token>   # hub-remind 投递提醒用

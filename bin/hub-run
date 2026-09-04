@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# 用法: hub-run <资源名|别名> <命令...>
+# 在指定资源上执行命令。Windows 走 PowerShell，Linux 走 bash -l，WSL/docker 经父资源转发。
+# 环境变量: HUB_CONFIRMED=1 放行黑名单命令（仅在主人明确确认后）。
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+[[ $# -ge 2 ]] || die "用法: hub-run <资源> <命令...>"
+res=$(res_resolve "$1"); shift; cmd="$*"
+
+if [[ "${HUB_CONFIRMED:-}" != "1" ]]; then
+  while IFS= read -r pat; do
+    [[ -z "$pat" || "$pat" == \#* ]] && continue
+    if [[ "$cmd" =~ $pat ]]; then
+      echo "hub: 命令命中黑名单模式 /$pat/，属于 L3 操作。" >&2
+      echo "hub: 请先向主人说明并取得明确确认，然后用 HUB_CONFIRMED=1 hub-run ... 重试。" >&2
+      exit 86
+    fi
+  done < "$HUB_DIR/bin/lib/blocklist.txt"
+fi
+
+mkdir -p "$STATE_DIR/logs"
+printf '%s	%s	%s	%s
+' "$(date +%FT%T)" "$res" "${HUB_CONFIRMED:+CONFIRMED}" "$cmd" >> "$STATE_DIR/logs/hub-run.log"
+hub_exec "$res" "$cmd"

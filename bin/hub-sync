@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 拉取公开框架仓库和 private/ 私有仓库，然后重新链接技能。
+set -euo pipefail
+HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for d in "$HUB_DIR" "$HUB_DIR/private"; do
+  [[ -d "$d/.git" ]] || { echo "skip  $d (不是 git 仓库)"; continue; }
+  echo "== $d"; git -C "$d" pull --ff-only
+done
+"$HUB_DIR/bin/hub-link-skills"

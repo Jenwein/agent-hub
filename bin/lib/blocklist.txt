@@ -1,0 +1,18 @@
+# hub-run 拦截的命令模式（bash 扩展正则，逐行，# 开头为注释）。
+# 命中即退出码 86。拿到主人明确确认后用 HUB_CONFIRMED=1 放行。
+rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\b
+Remove-Item\b.*-Recurse
+rmdir\s+/s
+del\s+/[sq]
+git\s+push\b.*(--force|-f\b|\+)
+git\s+reset\s+--hard
+git\s+branch\s+-D
+git\s+push\b.*--delete
+docker\s+(volume\s+(rm|prune)|system\s+prune|rm\s+-[a-z]*f)
+DROP\s+(DATABASE|TABLE)
+mkfs\.
+dd\s+.*of=/dev/
+shutdown|reboot|Restart-Computer|Stop-Computer
+(^|\s)(sudo\s+)?(systemctl\s+(disable|mask)|ufw\s+|iptables\s+)
+(^|\s)(sudo\s+)?(passwd|visudo|usermod)\b
+Set-ItemProperty\s+.*HK(LM|CU)
