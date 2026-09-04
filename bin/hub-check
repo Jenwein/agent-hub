@@ -12,7 +12,7 @@ esac
 if out=$(HUB_SSH_TIMEOUT=5 timeout 25 bash -c 'source "$1/bin/lib/common.sh"; hub_exec "$2" "$3"' _ "$HUB_DIR" "$res" "$probe" 2>/dev/null); then
   echo "online  $res  ${out//$'\n'/ }"
 else
-  ao=$(yq -r ".resources[\"$res\"].always_on" "$RES_FILE")
+  ao=$(res_always_on "$res")
   if [[ "$ao" == "false" ]]; then echo "offline $res  (always_on=false，离线属正常)"; else echo "offline $res  (该资源应常开，请检查)"; fi
   exit 1
 fi

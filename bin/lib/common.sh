@@ -28,6 +28,17 @@ res_resolve() {
   die "未知资源 '$q'。可用：$(res_list | tr '\n' ' ')"
 }
 
+# always_on：自己没写就沿 via 链继承父资源的值；都没写按 true
+res_always_on() {
+  local r="$1" v
+  while [[ -n "$r" ]]; do
+    v=$(yq -r ".resources[\"$r\"].always_on" "$RES_FILE")
+    [[ "$v" != "null" ]] && { echo "$v"; return; }
+    r=$(res_field "$r" via)
+  done
+  echo true
+}
+
 # 在 Windows 资源上执行 PowerShell：用 EncodedCommand 绕开引号地狱
 run_windows() { # host cmd
   local enc; enc=$(printf '%s' "$2" | iconv -f utf-8 -t utf-16le | base64 -w0)
