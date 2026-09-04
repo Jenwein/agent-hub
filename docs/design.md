@@ -62,6 +62,10 @@ cc-connect 开 yolo，否则 IM 里每条工具调用都要点确认没法用。
 
 记账、备忘、任务、提醒各一个薄脚本，数据在 `private/state/hub.db`（SQLite 单文件）。选 SQLite 而不是文本的原因：agent 只调脚本不碰存储，写入原子；查询汇总一句 SQL；备份是复制一个文件；随时 `export` 成 CSV 给别的工具。长期记忆是给 agent 读的文本，仍是 `memory.md`。
 
+## 任务现场
+
+非平凡任务各自一个目录 `private/state/work/<日期>-<slug>/`，里面只有 `task.md`（请求原话、计划、结果，原地追加）和自由放置的 `evidence/`。刻意做得很轻：agent 的负担只是建目录和追加一个文件。任务摘要不另存，归宿是 `hub-task` 的 notes；执行了什么由 `hub-run` 审计日志记录。证据 30 天后清理，`task.md` 保留。
+
 提醒的投递靠服务器 cron 每分钟 `hub-remind due --notify` 打 Discord webhook。
 
 ## 依赖与取舍

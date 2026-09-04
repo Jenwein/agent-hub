@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# 任务现场。每个非平凡任务一个目录，避免中间文件互相污染，并保留证据。
+# 用法:
+#   hub-work new "<短标题>" ["<主人原话>"]   -> 创建 private/state/work/<日期>-<slug>/{task.md,evidence/}，输出目录路径
+#   hub-work list                            -> 列出现有现场
+#   hub-work note <目录> "<一段文字>"         -> 向 task.md 追加带时间戳的一段
+#   hub-work clean [天数]                     -> 删除 evidence/ 里超过 N 天（默认 30）的文件，task.md 永远保留
+set -euo pipefail
+HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORK="$HUB_DIR/private/state/work"
+die() { echo "hub: $*" >&2; exit 1; }
+case "${1:-}" in
+  new)
+    [[ -n "${2:-}" ]] || die "用法: hub-work new <短标题> [主人原话]"
+    slug=$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9一-龥]+/-/g; s/^-+|-+$//g')
+    dir="$WORK/$(date +%F)-$slug"; n=1
+    while [[ -e "$dir" ]]; do n=$((n+1)); dir="$WORK/$(date +%F)-$slug-$n"; done
+    mkdir -p "$dir/evidence"
+    { echo "# $2"; echo; echo "## 请求 ($(date '+%F %H:%M'))"; echo; echo "${3:-（未记录原话）}"; echo; } > "$dir/task.md"
+    echo "$dir" ;;
+  list)
+    [[ -d "$WORK" ]] || { echo "(空)"; exit 0; }
+    for d in "$WORK"/*/; do printf '%s\t%s\n' "$(basename "$d")" "$(head -1 "$d/task.md" 2>/dev/null | sed 's/^# //')"; done ;;
+  note)
+    [[ -n "${2:-}" && -n "${3:-}" ]] || die "用法: hub-work note <目录> <文字>"
+    d="$2"; [[ -d "$d" ]] || d="$WORK/$2"; [[ -f "$d/task.md" ]] || die "找不到现场 $2"
+    { echo "## $(date '+%F %H:%M')"; echo; echo "$3"; echo; } >> "$d/task.md" ;;
+  clean)
+    days="${2:-30}"; [[ -d "$WORK" ]] || exit 0
+    n=$(find "$WORK" -path '*/evidence/*' -type f -mtime +"$days" -print -delete | wc -l)
+    find "$WORK" -mindepth 2 -type d -empty -delete
+    echo "cleaned $n files older than $days days" ;;
+  *) die "用法: hub-work new|list|note|clean" ;;
+esac

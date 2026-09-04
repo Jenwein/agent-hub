@@ -17,7 +17,7 @@ rules/                  行为规则、操作分级、资源用法、任务流�
 resources.example.yaml  资源清单格式示例（真实清单在 private/resources.yaml）
 skills/                 技能，每个一个 SKILL.md
 bin/                    脚本：hub-run、hub-check、hub-res、hub-safe-rm、hub-doctor、
-                        hub-ledger、hub-memo、hub-task、hub-remind、hub-backup、hub-sync
+                        hub-ledger、hub-memo、hub-task、hub-remind、hub-work、hub-backup、hub-sync
 docs/                   设计文档、部署步骤
 private/                gitignore；你的规则、清单、技能、运行状态
 tmp/                    临时现场

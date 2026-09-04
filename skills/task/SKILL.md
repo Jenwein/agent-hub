@@ -14,7 +14,7 @@ description: 跟踪多步任务，跨会话接续。会话开始先看有没有�
 
 ## 步骤
 1. 会话开始：`bin/hub-task list`，有 doing/waiting 的先向主人提一句。
-2. 开始一件多步任务：`add`，然后 `set <id> --status doing`。
+2. 开始一件多步任务：`add`，然后 `set <id> --status doing`。需要现场的按 `rules/30-workflow.md` 用 `bin/hub-work new` 建目录，并 `--append "现场在 work/<目录名>"`。
 3. 每完成一个阶段：`set <id> --append "<做到哪、下一步是什么、关键路径或命令>"`，写得让下个会话的你能直接接着做。
 4. 等主人：`set <id> --status waiting --append "等主人确认 X"`。
 5. 完成：`done <id>`。
