@@ -26,4 +26,4 @@ done
 echo; echo "== private"
 [[ -d "$PRIV_DIR/.git" ]] && echo "ok   private/ 是 git 仓库" || echo "INFO private/ 不是 git 仓库（可选）"
 [[ -f "$STATE_DIR/hub.db" ]] && echo "ok   state/hub.db" || echo "INFO state/hub.db 不存在，运行 bin/hub-db-init"
-if [[ -L "$HUB_DIR/.agents/skills" ]]; then echo "ok   .agents/skills 已链接"; else echo "INFO .agents/skills 未链接，运行 bin/hub-link-skills"; fi
+if [[ -d "$HUB_DIR/.agents/skills" && -n "$(ls -A "$HUB_DIR/.agents/skills")" ]]; then echo "ok   .agents/skills 已链接 ($(ls "$HUB_DIR/.agents/skills" | wc -l) 个)"; else echo "INFO .agents/skills 未链接，运行 bin/hub-link-skills"; fi
