@@ -34,14 +34,17 @@ def parse_when(s):
 
 def webhook():
     url = os.environ.get("HUB_DISCORD_WEBHOOK")
-    if url:
-        return url
     f = HUB_DIR / "private" / "resources.yaml"
-    if f.exists():
-        m = re.search(r"^\s*discord_webhook:\s*[\"']?(\S+?)[\"']?\s*$", f.read_text(encoding="utf-8"), re.M)
-        if m:
-            return m[1]
-    return None
+    if not url and f.exists():
+        try:
+            import subprocess
+            url = subprocess.run(["yq", "-r", '.services.discord_webhook // ""', str(f)],
+                                 capture_output=True, text=True, timeout=10).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            m = re.search(r"^\s*discord_webhook:\s*(.+?)\s*$", f.read_text(encoding="utf-8"), re.M)
+            url = m[1] if m else ""
+    url = (url or "").strip().strip("\"'").lstrip(":").strip()
+    return url if url.startswith("http") else None
 
 
 def notify(url, text):
