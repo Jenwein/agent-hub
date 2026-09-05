@@ -43,12 +43,13 @@ res_always_on() {
 # 包一层：输出统一 UTF-8，wsl.exe 也输出 UTF-8，错误流并入正文当文本（否则 ssh 下会回 CLIXML），有错误则退出码 1
 run_windows() { # host cmd
   local wrapped enc
-  wrapped="[Console]::OutputEncoding=[Text.Encoding]::UTF8; \$env:WSL_UTF8=1; \$ErrorActionPreference='Continue'
+  wrapped="[Console]::OutputEncoding=[Text.Encoding]::UTF8; \$env:WSL_UTF8=1; \$ErrorActionPreference='Continue'; \$ProgressPreference='SilentlyContinue'
 \$__o = & { $2 } 2>&1
 \$__o | Out-String -Width 300 | ForEach-Object { \$_.TrimEnd() }
 if (\$__o | Where-Object { \$_ -is [System.Management.Automation.ErrorRecord] }) { exit 1 }"
   enc=$(printf '%s' "$wrapped" | iconv -f utf-8 -t utf-16le | base64 -w0)
-  ssh "${SSH_OPTS[@]}" "$1" -- powershell -NoProfile -NonInteractive -EncodedCommand "$enc"
+  # stderr 里残留的 CLIXML 头和 XML 体过滤掉，其余原样透传
+  ssh "${SSH_OPTS[@]}" "$1" -- powershell -NoProfile -NonInteractive -EncodedCommand "$enc"     2> >(grep -vE '^#< CLIXML|^<Objs ' >&2)
 }
 
 run_linux_ssh() { # host cmd
